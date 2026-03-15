@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>PhoneFlip</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0b;
+  --surface: #141416;
+  --surface2: #1c1c20;
+  --border: #2a2a30;
+  --text: #e8e8ec;
+  --muted: #6b6b78;
+  --accent: #22c55e;
+  --accent2: #16a34a;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+  --radius: 12px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom, 20px);
+  overflow-x: hidden;
+}
+input, select, button { font-family: 'Outfit', sans-serif; -webkit-appearance: none; }
+input[type="text"], input[type="number"], input[type="date"], select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 16px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+input:focus, select:focus { border-color: var(--accent); }
+input[type="number"]::-webkit-inner-spin-button { display: none; }
+::placeholder { color: var(--muted); }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.container { max-width: 600px; margin: 0 auto; padding: 16px 14px; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
+.header h1 span { font-size: 24px; }
+.subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+
+.btn-add {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; border: none; border-radius: 10px; padding: 10px 16px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 2px 12px rgba(34,197,94,0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.btn-add:active { transform: scale(0.96); }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; margin-bottom: 20px; background: var(--surface); border-radius: 10px; padding: 3px; border: 1px solid var(--border); }
+.tab {
+  flex: 1; padding: 9px 0; text-align: center; font-size: 13px; font-weight: 500;
+  border: none; background: transparent; color: var(--muted); cursor: pointer;
+  border-radius: 8px; transition: all 0.2s;
+}
+.tab.active { background: var(--surface2); color: var(--text); font-weight: 600; }
+
+/* Modal */
+.overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; align-items: flex-end; justify-content: center;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+}
+.overlay.active { display: flex; }
+.modal {
+  background: var(--surface); border-radius: 20px 20px 0 0; padding: 24px 20px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 20px));
+  width: 100%; max-width: 600px; border: 1px solid var(--border); border-bottom: none;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  animation: slideUp 0.3s ease;
+  max-height: 90vh; overflow-y: auto;
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 18px; }
+.modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 18px; }
+.form-grid { display: flex; flex-direction: column; gap: 14px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form-label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+.form-hint { font-size: 11px; color: var(--muted); }
+.form-actions { display: flex; gap: 10px; margin-top: 4px; }
+.btn-submit {
+  flex: 1; background: var(--accent); color: #fff; border: none;
+  border-radius: 10px; padding: 13px 0; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.btn-submit:active { opacity: 0.85; }
+.btn-cancel {
+  flex: 1; background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 10px; padding: 13px 0; font-size: 15px; cursor: pointer;
+}
+
+/* Stats */
+.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
+.stats-grid .stat-card:first-child { grid-column: 1 / -1; }
+.stat-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 14px 16px; border: 1px solid var(--border);
+}
+.stat-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+.stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.stat-card:first-child .stat-value { font-size: 28px; }
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Best/worst */
+.deals-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.deal-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 12px 14px; border: 1px solid var(--border);
+}
+.deal-card.best { border-left: 3px solid var(--accent); }
+.deal-card.worst-loss { border-left: 3px solid var(--red); }
+.deal-card.worst-ok { border-left: 3px solid var(--muted); }
+.deal-label { font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.deal-name { font-size: 13px; font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deal-profit { font-size: 13px; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+/* Chart */
+.chart-box {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; border: 1px solid var(--border); margin-bottom: 18px;
+}
+.chart-title { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 10px; }
+.chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 100px; padding: 0 2px; }
+.chart-bar {
+  flex: 1; min-width: 4px; max-width: 28px; border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease;
+}
+.chart-empty { color: var(--muted); text-align: center; padding: 30px 0; font-size: 13px; }
+
+/* Trade list (card-based for mobile) */
+.trade-card {
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+  padding: 14px 16px; margin-bottom: 8px; transition: background 0.15s;
+}
+.trade-card:active { background: var(--surface2); }
+.trade-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.trade-name { font-weight: 600; font-size: 14px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 8px; }
+.status-badge { font-size: 10px; padding: 3px 8px; border-radius: 6px; font-weight: 600; flex-shrink: 0; }
+.status-sold { background: #d1fae5; color: #065f46; }
+.status-stock { background: #fef3c7; color: #92400e; }
+.trade-bottom { display: flex; justify-content: space-between; align-items: center; }
+.trade-prices { display: flex; gap: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.trade-price-label { color: var(--muted); font-size: 10px; display: block; }
+.trade-profit { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; text-align: right; }
+.trade-date { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: right; }
+.trade-actions { display: flex; gap: 2px; margin-top: 8px; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 8px; }
+.action-btn {
+  background: var(--surface2); border: 1px solid var(--border); cursor: pointer;
+  font-size: 12px; padding: 6px 14px; border-radius: 8px; color: var(--muted);
+  transition: all 0.15s;
+}
+.action-btn:active { background: var(--border); }
+
+.filter-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.filter-row select { width: auto; min-width: 140px; font-size: 14px; }
+.filter-count { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+.empty-state {
+  text-align: center; padding: 50px 20px;
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+}
+.empty-icon { font-size: 44px; margin-bottom: 10px; }
+.empty-text { color: var(--muted); font-size: 14px; }
+
+.footer {
+  text-align: center; padding: 20px 0 8px;
+  font-size: 10px; color: var(--muted); font-family: 'JetBrains Mono', monospace;
+}
+
+.export-btn {
+  background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 12px; font-size: 11px; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace; margin-left: auto;
+}
+.export-btn:active { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1><span>📱</span> PhoneFlip</h1>
+      <p class="subtitle">трекер перепродаж</p>
+    </div>
+    <button class="btn-add" onclick="openForm()">+ Сделка</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('dashboard',this)">📊 Обзор</button>
+    <button class="tab" onclick="switchTab('trades',this)">📋 Сделки</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboardTab">
+    <div id="stats"></div>
+    <div id="bestWorst"></div>
+    <div id="chart"></div>
+  </div>
+
+  <!-- Trades -->
+  <div id="tradesTab" style="display:none">
+    <div class="filter-row">
+      <select id="monthFilter" onchange="render()"></select>
+      <span class="filter-count" id="countLabel"></span>
+      <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
+    </div>
+    <div id="tradesList"></div>
+  </div>
+
+  <div class="footer">PhoneFlip v1.0</div>
+</div>
+
+<!-- Modal -->
+<div class="overlay" id="overlay" onclick="if(event.target===this)closeForm()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="formTitle">Новая сделка</h2>
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Модель</label>
+        <select id="fModel" onchange="onModelChange()">
+          <option value="">Выбрать модель...</option>
+        </select>
+      </div>
+      <div class="form-row" id="storageColorRow" style="display:none">
+        <div>
+          <label class="form-label">Память</label>
+          <select id="fStorage"></select>
+        </div>
+        <div>
+          <label class="form-label">Цвет</label>
+          <select id="fColor"></select>
+        </div>
+      </div>
+      <div id="manualNameRow">
+        <label class="form-label">Или вручную</label>
+        <input type="text" id="fName" placeholder="Другая модель...">
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="form-label">Купил ₽</label>
+          <input type="number" id="fBuy" placeholder="50000" inputmode="numeric">
+        </div>
+        <div>
+          <label class="form-label">Продал ₽</label>
+          <input type="number" id="fSell" placeholder="58000" inputmode="numeric">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Дата</label>
+        <input type="date" id="fDate">
+      </div>
+      <p class="form-hint">Без цены продажи → статус «В наличии»</p>
+      <div class="form-actions">
+        <button class="btn-submit" onclick="submitForm()" id="btnSubmit">Добавить</button>
+        <button class="btn-cancel" onclick="closeForm()">Отмена</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Telegram WebApp ---
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.enableClosingConfirmation();
+  // Adapt theme
+  if (tg.colorScheme === "light") {
+    document.documentElement.style.setProperty("--bg", "#f0f0f0");
+    document.documentElement.style.setProperty("--surface", "#ffffff");
+    document.documentElement.style.setProperty("--surface2", "#f5f5f5");
+    document.documentElement.style.setProperty("--border", "#e0e0e0");
+    document.documentElement.style.setProperty("--text", "#1a1a1a");
+    document.documentElement.style.setProperty("--muted", "#888888");
+  }
+}
+
+function haptic(type) {
+  try { if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred(type || "light"); } catch(e){}
+}
+
+// --- Constants ---
+const STORAGE_KEY = "phone-trades-v1";
+const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+
+const IPHONE_MODELS = [
+  { label: "iPhone 17", storages: ["256GB","512GB"], colors: ["Lavender","Sage","Mist Blue","White","Black"] },
+  { label: "iPhone Air", storages: ["256GB","512GB"], colors: ["Space Black","Cloud White","Light Gold","Sky Blue"] },
+  { label: "iPhone 17 Pro", storages: ["256GB","512GB","1TB"], colors: ["Silver","Deep Blue","Cosmic Orange"] },
+  { label: "iPhone 17 Pro Max", storages: ["256GB","512GB","1TB"], colors: ["Silver","Deep Blue","Cosmic Orange"] },
+];
+
+let trades = [];
+let editId = null;
+let currentTab = "dashboard";
+
+// --- Storage (Telegram CloudStorage with localStorage fallback) ---
+async function loadData() {
+  return new Promise((resolve) => {
+    if (tg && tg.CloudStorage) {
+      tg.CloudStorage.getItem(STORAGE_KEY, (err, val) => {
+        if (!err && val) {
+          try { trades = JSON.parse(val); } catch(e) {}
+        }
+        resolve();
+      });
+    } else {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) trades = JSON.parse(raw);
+      } catch(e) {}
+      resolve();
+    }
+  });
+}
+
+function saveData() {
+  const data = JSON.stringify(trades);
+  if (tg && tg.CloudStorage) {
+    tg.CloudStorage.setItem(STORAGE_KEY, data);
+  }
+  // Always save to localStorage too as backup
+  try { localStorage.setItem(STORAGE_KEY, data); } catch(e) {}
+}
+
+// --- Helpers ---
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function fmt(n) { return n == null ? "—" : n.toLocaleString("ru-RU") + " ₽"; }
+function fmtDate(d) { return new Date(d).toLocaleDateString("ru-RU",{day:"numeric",month:"short"}); }
+function monthKey(d) { const dt=new Date(d); return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0"); }
+function monthLabel(k) { const[y,m]=k.split("-"); return MONTHS_RU[parseInt(m)-1]+" "+y; }
+
+// --- Tabs ---
+function switchTab(tab, el) {
+  haptic("light");
+  currentTab = tab;
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("dashboardTab").style.display = tab === "dashboard" ? "block" : "none";
+  document.getElementById("tradesTab").style.display = tab === "trades" ? "block" : "none";
+}
+
+// --- Model Select ---
+function initModelSelect() {
+  const sel = document.getElementById("fModel");
+  sel.innerHTML = '<option value="">Выбрать модель...</option>';
+  IPHONE_MODELS.forEach(m => {
+    const o = document.createElement("option");
+    o.value = m.label; o.textContent = m.label;
+    sel.appendChild(o);
+  });
+}
+
+function onModelChange() {
+  const val = document.getElementById("fModel").value;
+  const model = IPHONE_MODELS.find(m => m.label === val);
+  const row = document.getElementById("storageColorRow");
+  const manual = document.getElementById("manualNameRow");
+
+  if (model) {
+    row.style.display = "grid";
+    manual.style.display = "none";
+    const sSel = document.getElementById("fStorage");
+    sSel.innerHTML = '<option value="">—</option>';
+    model.storages.forEach(s => { const o=document.createElement("option"); o.value=s; o.textContent=s; sSel.appendChild(o); });
+    const cSel = document.getElementById("fColor");
+    cSel.innerHTML = '<option value="">—</option>';
+    model.colors.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; cSel.appendChild(o); });
+  } else {
+    row.style.display = "none";
+    manual.style.display = "block";
+  }
+}
+
+// --- Form ---
+function openForm(id) {
+  haptic("medium");
+  editId = id || null;
+  document.getElementById("formTitle").textContent = editId ? "Редактировать" : "Новая сделка";
+  document.getElementById("btnSubmit").textContent = editId ? "Сохранить" : "Добавить";
+
+  if (editId) {
+    const t = trades.find(x => x.id === editId);
+    if (!t) return;
+    const found = IPHONE_MODELS.find(m => t.name.startsWith(m.label));
+    if (found) {
+      document.getElementById("fModel").value = found.label;
+      onModelChange();
+      const rest = t.name.slice(found.label.length).trim();
+      const fs = found.storages.find(s => rest.includes(s));
+      const fc = found.colors.find(c => rest.includes(c));
+      if (fs) document.getElementById("fStorage").value = fs;
+      if (fc) document.getElementById("fColor").value = fc;
+      document.getElementById("fName").value = "";
+    } else {
+      document.getElementById("fModel").value = "";
+      onModelChange();
+      document.getElementById("fName").value = t.name;
+    }
+    document.getElementById("fBuy").value = t.buyPrice;
+    document.getElementById("fSell").value = t.sellPrice != null ? t.sellPrice : "";
+    document.getElementById("fDate").value = t.soldDate || t.date;
+  } else {
+    document.getElementById("fModel").value = "";
+    onModelChange();
+    document.getElementById("fName").value = "";
+    document.getElementById("fBuy").value = "";
+    document.getElementById("fSell").value = "";
+    document.getElementById("fDate").value = new Date().toISOString().slice(0,10);
+  }
+  document.getElementById("overlay").classList.add("active");
+}
+
+function closeForm() {
+  document.getElementById("overlay").classList.remove("active");
+  editId = null;
+}
+
+function submitForm() {
+  const modelVal = document.getElementById("fModel").value;
+  const storage = document.getElementById("fStorage").value;
+  const color = document.getElementById("fColor").value;
+  const manualName = document.getElementById("fName").value.trim();
+  const name = modelVal ? [modelVal, storage, color].filter(Boolean).join(" ") : manualName;
+  const buyPrice = parseFloat(document.getElementById("fBuy").value);
+  const sellRaw = document.getElementById("fSell").value;
+  const sellPrice = sellRaw ? parseFloat(sellRaw) : null;
+  const date = document.getElementById("fDate").value;
+
+  if (!name || isNaN(buyPrice) || !date) return;
+
+  haptic("heavy");
+
+  const entry = {
+    id: editId || genId(),
+    name, buyPrice, sellPrice, date,
+    soldDate: sellPrice != null ? date : null,
+    status: sellPrice != null ? "sold" : "in_stock"
+  };
+
+  if (editId) {
+    trades = trades.map(t => t.id === editId ? entry : t);
+  } else {
+    trades.unshift(entry);
+  }
+  saveData();
+  closeForm();
+  render();
+}
+
+function deleteTrade(id) {
+  haptic("heavy");
+  if (!confirm("Удалить сделку?")) return;
+  trades = trades.filter(t => t.id !== id);
+  saveData();
+  render();
+}
+
+// --- Export ---
+function exportCSV() {
+  haptic("light");
+  if (!trades.length) return;
+  const header = "Модель;Покупка;Продажа;Профит;Дата;Статус\n";
+  const rows = trades.map(t => {
+    const profit = t.sellPrice != null ? t.sellPrice - t.buyPrice : "";
+    return [t.name, t.buyPrice, t.sellPrice||"", profit, t.soldDate||t.date, t.status==="sold"?"Продано":"В наличии"].join(";");
+  }).join("\n");
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + header + rows], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "PhoneFlip_export.csv";
+  a.click();
+}
+
+// --- Render ---
+function render() {
+  const monthFilter = document.getElementById("monthFilter").value || "all";
+
+  // Months
+  const monthSet = new Set();
+  trades.forEach(t => monthSet.add(monthKey(t.soldDate || t.date)));
+  const months = [...monthSet].sort().reverse();
+  const mf = document.getElementById("monthFilter");
+  const curVal = mf.value;
+  mf.innerHTML = '<option value="all">Все месяцы</option>';
+  months.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=monthLabel(m); mf.appendChild(o); });
+  mf.value = months.includes(curVal) ? curVal : "all";
+  const selMonth = mf.value;
+
+  // Filter
+  let filtered = trades;
+  if (selMonth !== "all") filtered = filtered.filter(t => monthKey(t.soldDate||t.date) === selMonth);
+  // Sort by date desc
+  filtered = [...filtered].sort((a,b) => new Date(b.soldDate||b.date) - new Date(a.soldDate||a.date));
+
+  document.getElementById("countLabel").textContent = filtered.length + " шт";
+
+  // Stats
+  const sold = filtered.filter(t => t.status==="sold" && t.sellPrice!=null);
+  const totalProfit = sold.reduce((s,t) => s+(t.sellPrice-t.buyPrice), 0);
+  const totalRevenue = sold.reduce((s,t) => s+t.sellPrice, 0);
+  const avgProfit = sold.length ? totalProfit/sold.length : 0;
+  const avgMargin = totalRevenue>0 ? (totalProfit/totalRevenue*100) : 0;
+  const inStock = filtered.filter(t => t.status==="in_stock");
+  const stockValue = inStock.reduce((s,t) => s+t.buyPrice, 0);
+  const best = sold.length ? sold.reduce((b,t) => (t.sellPrice-t.buyPrice)>(b.sellPrice-b.buyPrice)?t:b) : null;
+  const worst = sold.length ? sold.reduce((b,t) => (t.sellPrice-t.buyPrice)<(b.sellPrice-b.buyPrice)?t:b) : null;
+
+  const profitColor = totalProfit>=0 ? "var(--accent)" : "var(--red)";
+  const profitSign = totalProfit>=0 ? "+" : "";
+
+  document.getElementById("stats").innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">💰 Общий профит</div>
+        <div class="stat-value" style="color:${profitColor}">${profitSign}${fmt(totalProfit)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📊 Сделок</div>
+        <div class="stat-value">${sold.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📈 Ср. профит</div>
+        <div class="stat-value" style="color:${avgProfit>=0?'var(--accent)':'var(--red)'}; font-size:16px">${fmt(Math.round(avgProfit))}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">⚡ Маржа</div>
+        <div class="stat-value" style="color:var(--yellow)">${avgMargin.toFixed(1)}%</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📦 В наличии · ${inStock.length} шт</div>
+        <div class="stat-value" style="color:var(--muted); font-size:16px">${fmt(stockValue)}</div>
+      </div>
+    </div>`;
+
+  // Best/worst
+  let bwHTML = "";
+  if (best) {
+    bwHTML += '<div class="deals-row">';
+    bwHTML += `<div class="deal-card best">
+      <div class="deal-label">🏆 Лучшая</div>
+      <div class="deal-name">${best.name}</div>
+      <div class="deal-profit" style="color:var(--accent)">+${fmt(best.sellPrice-best.buyPrice)}</div>
+    </div>`;
+    if (worst && sold.length > 1) {
+      const wp = worst.sellPrice - worst.buyPrice;
+      bwHTML += `<div class="deal-card ${wp<0?'worst-loss':'worst-ok'}">
+        <div class="deal-label">📉 Худшая</div>
+        <div class="deal-name">${worst.name}</div>
+        <div class="deal-profit" style="color:${wp<0?'var(--red)':'var(--muted)'}">${wp>=0?'+':''}${fmt(wp)}</div>
+      </div>`;
+    }
+    bwHTML += '</div>';
+  }
+  document.getElementById("bestWorst").innerHTML = bwHTML;
+
+  // Chart
+  const now = new Date(); const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-30);
+  const last30 = trades.filter(t => t.status==="sold" && new Date(t.soldDate||t.date)>=cutoff)
+    .sort((a,b) => new Date(a.soldDate||a.date)-new Date(b.soldDate||b.date));
+
+  let chartHTML = '<div class="chart-box"><div class="chart-title">📊 ПРОФИТ · 30 ДНЕЙ</div>';
+  if (last30.length === 0) {
+    chartHTML += '<div class="chart-empty">Нет продаж за 30 дней</div>';
+  } else {
+    const maxP = Math.max(...last30.map(t=>Math.abs(t.sellPrice-t.buyPrice)),1);
+    chartHTML += '<div class="chart-bars">';
+    last30.forEach((t,i) => {
+      const p = t.sellPrice - t.buyPrice;
+      const h = Math.max(6, (Math.abs(p)/maxP)*90);
+      const pos = p >= 0;
+      chartHTML += `<div class="chart-bar" style="height:${h}px;background:linear-gradient(180deg,${pos?'#22c55e,#16a34a':'#ef4444,#dc2626'})" title="${t.name}: ${p>=0?'+':''}${fmt(p)}"></div>`;
+    });
+    chartHTML += '</div>';
+  }
+  chartHTML += '</div>';
+  document.getElementById("chart").innerHTML = chartHTML;
+
+  // Trade cards
+  if (filtered.length === 0) {
+    document.getElementById("tradesList").innerHTML = '<div class="empty-state"><div class="empty-icon">📱</div><div class="empty-text">Нажми «+ Сделка» чтобы начать</div></div>';
+    return;
+  }
+
+  let listHTML = "";
+  filtered.forEach(t => {
+    const profit = t.sellPrice != null ? t.sellPrice - t.buyPrice : null;
+    const statusClass = t.status==="sold" ? "status-sold" : "status-stock";
+    const statusText = t.status==="sold" ? "Продано" : "В наличии";
+    const profitColor = profit==null ? "var(--muted)" : profit>=0 ? "var(--accent)" : "var(--red)";
+    const profitText = profit!=null ? (profit>=0?"+":"")+fmt(profit) : "—";
+
+    listHTML += `<div class="trade-card">
+      <div class="trade-top">
+        <div class="trade-name">${t.name}</div>
+        <span class="status-badge ${statusClass}">${statusText}</span>
+      </div>
+      <div class="trade-bottom">
+        <div class="trade-prices">
+          <div><span class="trade-price-label">Покупка</span>${fmt(t.buyPrice)}</div>
+          <div><span class="trade-price-label">Продажа</span>${t.sellPrice!=null?fmt(t.sellPrice):'—'}</div>
+        </div>
+        <div>
+          <div class="trade-profit" style="color:${profitColor}">${profitText}</div>
+          <div class="trade-date">${fmtDate(t.soldDate||t.date)}</div>
+        </div>
+      </div>
+      <div class="trade-actions">
+        <button class="action-btn" onclick="openForm('${t.id}')">✏️ Изменить</button>
+        <button class="action-btn" onclick="deleteTrade('${t.id}')">🗑 Удалить</button>
+      </div>
+    </div>`;
+  });
+  document.getElementById("tradesList").innerHTML = listHTML;
+}
+
+// --- Init ---
+(async () => {
+  await loadData();
+  initModelSelect();
+  render();
+})();
+</script>
+</body>
+</html>
