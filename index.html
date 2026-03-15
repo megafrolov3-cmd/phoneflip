@@ -131,17 +131,39 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 .deal-name { font-size: 13px; font-weight: 600; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .deal-profit { font-size: 13px; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
 
-/* Chart */
+/* Calendar */
 .chart-box {
   background: var(--surface); border-radius: var(--radius);
   padding: 16px; border: 1px solid var(--border); margin-bottom: 18px;
 }
-.chart-title { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 10px; }
-.chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 100px; padding: 0 2px; }
-.chart-bar {
-  flex: 1; min-width: 4px; max-width: 28px; border-radius: 3px 3px 0 0;
-  transition: height 0.4s ease;
+.chart-title { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.cal-nav { display: flex; gap: 6px; align-items: center; }
+.cal-nav button {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
 }
+.cal-nav button:active { background: var(--border); }
+.cal-total { font-size: 18px; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin: 6px 0 12px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-head {
+  font-size: 10px; color: var(--muted); text-align: center; padding: 4px 0;
+  font-family: 'JetBrains Mono', monospace; font-weight: 600;
+}
+.cal-day {
+  aspect-ratio: 1; border-radius: 8px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; font-size: 12px; position: relative;
+  transition: background 0.15s;
+}
+.cal-day.empty { opacity: 0; }
+.cal-day.today { border: 1px solid var(--accent); }
+.cal-day .day-num { font-weight: 500; color: var(--muted); font-size: 11px; }
+.cal-day .day-profit {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px; font-weight: 700;
+  margin-top: 1px; white-space: nowrap;
+}
+.cal-day.has-profit { background: rgba(34,197,94,0.1); }
+.cal-day.has-loss { background: rgba(239,68,68,0.1); }
 .chart-empty { color: var(--muted); text-align: center; padding: 30px 0; font-size: 13px; }
 
 /* Trade list (card-based for mobile) */
@@ -333,6 +355,8 @@ const IPHONE_MODELS = [
 let trades = [];
 let editId = null;
 let currentTab = "dashboard";
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
 
 // --- Storage (Telegram CloudStorage with localStorage fallback) ---
 async function loadData() {
@@ -379,6 +403,11 @@ function switchTab(tab, el) {
   document.getElementById("dashboardTab").style.display = tab === "dashboard" ? "block" : "none";
   document.getElementById("tradesTab").style.display = tab === "trades" ? "block" : "none";
 }
+
+// --- Calendar Nav ---
+function calPrev() { haptic("light"); calMonth--; if(calMonth<0){calMonth=11;calYear--;} render(); }
+function calNext() { haptic("light"); calMonth++; if(calMonth>11){calMonth=0;calYear++;} render(); }
+function calToday() { haptic("light"); const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); render(); }
 
 // --- Model Select ---
 function initModelSelect() {
@@ -614,26 +643,74 @@ function render() {
   }
   document.getElementById("bestWorst").innerHTML = bwHTML;
 
-  // Chart
-  const now = new Date(); const cutoff = new Date(now); cutoff.setDate(cutoff.getDate()-30);
-  const last30 = trades.filter(t => t.status==="sold" && new Date(t.soldDate||t.date)>=cutoff)
-    .sort((a,b) => new Date(a.soldDate||a.date)-new Date(b.soldDate||b.date));
+  // Calendar
+  const DAYS_SHORT = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  const daysInMonth = lastDay.getDate();
+  let startDow = firstDay.getDay(); // 0=Sun
+  startDow = startDow === 0 ? 6 : startDow - 1; // convert to Mon=0
 
-  let chartHTML = '<div class="chart-box"><div class="chart-title">📊 ПРОФИТ · 30 ДНЕЙ</div>';
-  if (last30.length === 0) {
-    chartHTML += '<div class="chart-empty">Нет продаж за 30 дней</div>';
-  } else {
-    const maxP = Math.max(...last30.map(t=>Math.abs(t.sellPrice-t.buyPrice)),1);
-    chartHTML += '<div class="chart-bars">';
-    last30.forEach((t,i) => {
+  // Calc daily profits for this month
+  const dailyProfit = {};
+  let monthTotal = 0;
+  trades.forEach(t => {
+    if (t.status !== "sold" || t.sellPrice == null) return;
+    const d = new Date(t.soldDate || t.date);
+    if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
+      const day = d.getDate();
       const p = t.sellPrice - t.buyPrice;
-      const h = Math.max(6, (Math.abs(p)/maxP)*90);
-      const pos = p >= 0;
-      chartHTML += `<div class="chart-bar" style="height:${h}px;background:linear-gradient(180deg,${pos?'#22c55e,#16a34a':'#ef4444,#dc2626'})" title="${t.name}: ${p>=0?'+':''}${fmt(p)}"></div>`;
-    });
-    chartHTML += '</div>';
+      dailyProfit[day] = (dailyProfit[day] || 0) + p;
+      monthTotal += p;
+    }
+  });
+
+  const monthTotalColor = monthTotal >= 0 ? "var(--accent)" : "var(--red)";
+  const monthTotalSign = monthTotal >= 0 ? "+" : "";
+  const calMonthLabel = MONTHS_RU[calMonth] + " " + calYear;
+  const todayDate = new Date();
+  const isCurrentMonth = todayDate.getFullYear() === calYear && todayDate.getMonth() === calMonth;
+
+  let chartHTML = `<div class="chart-box">
+    <div class="chart-title">
+      <span>📅 ${calMonthLabel.toUpperCase()}</span>
+      <div class="cal-nav">
+        <button onclick="calPrev()">‹</button>
+        <button onclick="calToday()">•</button>
+        <button onclick="calNext()">›</button>
+      </div>
+    </div>
+    <div class="cal-total" style="color:${monthTotalColor}">${monthTotalSign}${fmt(monthTotal)}</div>
+    <div class="cal-grid">`;
+
+  DAYS_SHORT.forEach(d => { chartHTML += `<div class="cal-head">${d}</div>`; });
+
+  // Empty cells before 1st
+  for (let i = 0; i < startDow; i++) chartHTML += '<div class="cal-day empty"></div>';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const profit = dailyProfit[d];
+    const isToday = isCurrentMonth && d === todayDate.getDate();
+    let cls = "cal-day";
+    if (isToday) cls += " today";
+    if (profit != null && profit > 0) cls += " has-profit";
+    if (profit != null && profit < 0) cls += " has-loss";
+
+    let profitHTML = "";
+    if (profit != null) {
+      const col = profit >= 0 ? "var(--accent)" : "var(--red)";
+      const sign = profit >= 0 ? "+" : "";
+      const short = Math.abs(profit) >= 1000 ? (sign + Math.round(profit/1000) + "k") : (sign + profit.toLocaleString("ru-RU"));
+      profitHTML = `<div class="day-profit" style="color:${col}">${short}</div>`;
+    }
+
+    chartHTML += `<div class="${cls}">
+      <div class="day-num">${d}</div>
+      ${profitHTML}
+    </div>`;
   }
-  chartHTML += '</div>';
+
+  chartHTML += '</div></div>';
   document.getElementById("chart").innerHTML = chartHTML;
 
   // Trade cards
