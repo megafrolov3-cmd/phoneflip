@@ -220,6 +220,26 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   transition: background 0.15s; flex-shrink: 0;
 }
 .qty-btn:active { background: var(--border); }
+
+/* PVZ */
+.pvz-total-card {
+  background: var(--surface); border-radius: var(--radius);
+  padding: 16px; border: 1px solid var(--border); margin-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.pvz-total-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.pvz-total-value { font-size: 24px; font-weight: 700; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+.pvz-total-count { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.pvz-card {
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+  padding: 12px 16px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
+}
+.pvz-card:active { background: var(--surface2); }
+.pvz-left { flex: 1; }
+.pvz-amount { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; }
+.pvz-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.pvz-cashback { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: var(--accent); text-align: right; }
+.pvz-pct { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; text-align: right; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -237,6 +257,7 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   <div class="tabs">
     <button class="tab active" onclick="switchTab('dashboard',this)">📊 Обзор</button>
     <button class="tab" onclick="switchTab('trades',this)">📋 Продажи</button>
+    <button class="tab" onclick="switchTab('pvz',this)">💸 ПВЗ</button>
   </div>
 
   <!-- Dashboard -->
@@ -254,6 +275,17 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
       <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
     </div>
     <div id="tradesList"></div>
+  </div>
+
+  <!-- PVZ -->
+  <div id="pvzTab" style="display:none">
+    <div id="pvzStats"></div>
+    <div class="filter-row">
+      <select id="pvzMonthFilter" onchange="renderPvz()"></select>
+      <span class="filter-count" id="pvzCountLabel"></span>
+      <button class="btn-add" style="margin-left:auto;padding:8px 14px;font-size:13px" onclick="openPvzForm()">+ Заказ</button>
+    </div>
+    <div id="pvzList"></div>
   </div>
 
   <div class="footer">PhoneFlip v1.0</div>
@@ -318,6 +350,38 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   </div>
 </div>
 
+<!-- PVZ Modal -->
+<div class="overlay" id="pvzOverlay" onclick="if(event.target===this)closePvzForm()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="pvzFormTitle">Новый заказ</h2>
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Сумма заказа ₽</label>
+        <input type="number" id="pvzAmount" placeholder="5000" inputmode="numeric">
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="form-label">Процент %</label>
+          <input type="number" id="pvzPercent" value="2.5" step="0.1" inputmode="decimal">
+        </div>
+        <div>
+          <label class="form-label">Дата</label>
+          <input type="date" id="pvzDate">
+        </div>
+      </div>
+      <div id="pvzPreview" style="background:var(--surface2);border-radius:10px;padding:12px 14px;text-align:center;display:none">
+        <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:4px">КЭШБЭК</div>
+        <div id="pvzPreviewValue" style="font-size:22px;font-weight:700;color:var(--accent);font-family:'JetBrains Mono',monospace"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-submit" onclick="submitPvzForm()" id="pvzBtnSubmit">Добавить</button>
+        <button class="btn-cancel" onclick="closePvzForm()">Отмена</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // --- Telegram WebApp ---
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -342,6 +406,7 @@ function haptic(type) {
 
 // --- Constants ---
 const STORAGE_KEY = "phone-trades-v1";
+const PVZ_STORAGE_KEY = "phone-pvz-v1";
 const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 
 const IPHONE_MODELS = [
@@ -352,7 +417,9 @@ const IPHONE_MODELS = [
 ];
 
 let trades = [];
+let pvzOrders = [];
 let editId = null;
+let pvzEditId = null;
 let currentTab = "dashboard";
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -361,16 +428,22 @@ let calMonth = new Date().getMonth();
 async function loadData() {
   return new Promise((resolve) => {
     if (tg && tg.CloudStorage) {
+      let loaded = 0;
+      const done = () => { loaded++; if (loaded >= 2) resolve(); };
       tg.CloudStorage.getItem(STORAGE_KEY, (err, val) => {
-        if (!err && val) {
-          try { trades = JSON.parse(val); } catch(e) {}
-        }
-        resolve();
+        if (!err && val) { try { trades = JSON.parse(val); } catch(e) {} }
+        done();
+      });
+      tg.CloudStorage.getItem(PVZ_STORAGE_KEY, (err, val) => {
+        if (!err && val) { try { pvzOrders = JSON.parse(val); } catch(e) {} }
+        done();
       });
     } else {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) trades = JSON.parse(raw);
+        const pvzRaw = localStorage.getItem(PVZ_STORAGE_KEY);
+        if (pvzRaw) pvzOrders = JSON.parse(pvzRaw);
       } catch(e) {}
       resolve();
     }
@@ -379,11 +452,12 @@ async function loadData() {
 
 function saveData() {
   const data = JSON.stringify(trades);
+  const pvzData = JSON.stringify(pvzOrders);
   if (tg && tg.CloudStorage) {
     tg.CloudStorage.setItem(STORAGE_KEY, data);
+    tg.CloudStorage.setItem(PVZ_STORAGE_KEY, pvzData);
   }
-  // Always save to localStorage too as backup
-  try { localStorage.setItem(STORAGE_KEY, data); } catch(e) {}
+  try { localStorage.setItem(STORAGE_KEY, data); localStorage.setItem(PVZ_STORAGE_KEY, pvzData); } catch(e) {}
 }
 
 // --- Helpers ---
@@ -401,6 +475,8 @@ function switchTab(tab, el) {
   el.classList.add("active");
   document.getElementById("dashboardTab").style.display = tab === "dashboard" ? "block" : "none";
   document.getElementById("tradesTab").style.display = tab === "trades" ? "block" : "none";
+  document.getElementById("pvzTab").style.display = tab === "pvz" ? "block" : "none";
+  if (tab === "pvz") renderPvz();
 }
 
 // --- Calendar Nav ---
@@ -745,11 +821,143 @@ function render() {
   document.getElementById("tradesList").innerHTML = listHTML;
 }
 
+// --- PVZ Functions ---
+function openPvzForm(id) {
+  haptic("medium");
+  pvzEditId = id || null;
+  document.getElementById("pvzFormTitle").textContent = pvzEditId ? "Редактировать" : "Новый заказ";
+  document.getElementById("pvzBtnSubmit").textContent = pvzEditId ? "Сохранить" : "Добавить";
+
+  if (pvzEditId) {
+    const o = pvzOrders.find(x => x.id === pvzEditId);
+    if (!o) return;
+    document.getElementById("pvzAmount").value = o.amount;
+    document.getElementById("pvzPercent").value = o.percent;
+    document.getElementById("pvzDate").value = o.date;
+  } else {
+    document.getElementById("pvzAmount").value = "";
+    document.getElementById("pvzPercent").value = "2.5";
+    document.getElementById("pvzDate").value = new Date().toISOString().slice(0,10);
+  }
+  updatePvzPreview();
+  document.getElementById("pvzOverlay").classList.add("active");
+
+  // Live preview
+  document.getElementById("pvzAmount").oninput = updatePvzPreview;
+  document.getElementById("pvzPercent").oninput = updatePvzPreview;
+}
+
+function closePvzForm() {
+  document.getElementById("pvzOverlay").classList.remove("active");
+  pvzEditId = null;
+}
+
+function updatePvzPreview() {
+  const amount = parseFloat(document.getElementById("pvzAmount").value);
+  const pct = parseFloat(document.getElementById("pvzPercent").value);
+  const preview = document.getElementById("pvzPreview");
+  if (amount > 0 && pct > 0) {
+    const cashback = amount * pct / 100;
+    document.getElementById("pvzPreviewValue").textContent = "+" + fmt(Math.round(cashback));
+    preview.style.display = "block";
+  } else {
+    preview.style.display = "none";
+  }
+}
+
+
+function submitPvzForm() {
+  const amount = parseFloat(document.getElementById("pvzAmount").value);
+  const percent = parseFloat(document.getElementById("pvzPercent").value);
+  const date = document.getElementById("pvzDate").value;
+
+  if (isNaN(amount) || amount <= 0 || isNaN(percent) || !date) return;
+
+  haptic("heavy");
+
+  if (pvzEditId) {
+    pvzOrders = pvzOrders.map(o => o.id === pvzEditId ? { ...o, amount, percent, date, cashback: Math.round(amount * percent / 100) } : o);
+  } else {
+    pvzOrders.unshift({
+      id: genId() + "p",
+      amount, percent, date,
+      cashback: Math.round(amount * percent / 100)
+    });
+  }
+  saveData();
+  closePvzForm();
+  renderPvz();
+}
+
+function deletePvzOrder(id) {
+  haptic("heavy");
+  if (!confirm("Удалить заказ?")) return;
+  pvzOrders = pvzOrders.filter(o => o.id !== id);
+  saveData();
+  renderPvz();
+}
+
+function renderPvz() {
+  const mf = document.getElementById("pvzMonthFilter");
+  const monthSet = new Set();
+  pvzOrders.forEach(o => monthSet.add(monthKey(o.date)));
+  const months = [...monthSet].sort().reverse();
+  const curVal = mf.value;
+  mf.innerHTML = '<option value="all">Все месяцы</option>';
+  months.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=monthLabel(m); mf.appendChild(o); });
+  mf.value = months.includes(curVal) ? curVal : "all";
+  const selMonth = mf.value;
+
+  let filtered = pvzOrders;
+  if (selMonth !== "all") filtered = filtered.filter(o => monthKey(o.date) === selMonth);
+  filtered = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  document.getElementById("pvzCountLabel").textContent = filtered.length + " шт";
+
+  const totalCashback = filtered.reduce((s,o) => s + o.cashback, 0);
+  const totalAmount = filtered.reduce((s,o) => s + o.amount, 0);
+
+  document.getElementById("pvzStats").innerHTML = `
+    <div class="pvz-total-card">
+      <div>
+        <div class="pvz-total-label">💸 КЭШБЭК${selMonth !== 'all' ? ' · ' + monthLabel(selMonth) : ''}</div>
+        <div class="pvz-total-value">+${fmt(totalCashback)}</div>
+        <div class="pvz-total-count">Заказов: ${filtered.length} · Оборот: ${fmt(totalAmount)}</div>
+      </div>
+    </div>`;
+
+  if (filtered.length === 0) {
+    document.getElementById("pvzList").innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Нажми «+ Заказ» чтобы начать</div></div>';
+    return;
+  }
+
+  let html = "";
+  filtered.forEach(o => {
+    html += `<div class="pvz-card">
+      <div class="pvz-left">
+        <div class="pvz-amount">${fmt(o.amount)}</div>
+        <div class="pvz-meta">${fmtDate(o.date)} · ${o.percent}%</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div>
+          <div class="pvz-cashback">+${fmt(o.cashback)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button class="action-btn" style="padding:4px 8px;font-size:11px" onclick="openPvzForm('${o.id}')">✏️</button>
+          <button class="action-btn" style="padding:4px 8px;font-size:11px" onclick="deletePvzOrder('${o.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById("pvzList").innerHTML = html;
+}
+
 // --- Init ---
 (async () => {
   await loadData();
   initModelSelect();
   render();
+  renderPvz();
 })();
 </script>
 </body>
