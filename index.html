@@ -55,7 +55,7 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-.container { max-width: 600px; margin: 0 auto; padding: 16px 14px; }
+.container { max-width: 600px; margin: 0 auto; padding: 16px 14px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
 .header h1 span { font-size: 24px; }
@@ -240,10 +240,16 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 .light {
   --bg: #f2f2f7;
   --surface: #ffffff;
-  --surface2: #f0f0f5;
-  --border: #d8d8de;
+  --surface2: #e8e8ed;
+  --border: #c6c6cc;
   --text: #1a1a1a;
-  --muted: #8a8a8e;
+  --muted: #6e6e73;
+}
+.light .modal { background: var(--surface); }
+.light tbody tr:hover { background: #eee !important; }
+.light .chart-bar .tooltip { background: #fff; border-color: var(--border); }
+.light select, .light input[type="text"], .light input[type="number"], .light input[type="date"] {
+  background: var(--surface2); border-color: var(--border); color: var(--text);
 }
 
 /* PVZ */
