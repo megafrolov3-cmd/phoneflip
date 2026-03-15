@@ -107,15 +107,13 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 }
 
 /* Stats */
-.stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
-.stats-grid .stat-card:first-child { grid-column: 1 / -1; }
+.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
 .stat-card {
   background: var(--surface); border-radius: var(--radius);
   padding: 14px 16px; border: 1px solid var(--border);
 }
 .stat-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-.stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-.stat-card:first-child .stat-value { font-size: 28px; }
+.stat-value { font-size: 17px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
 /* Best/worst */
@@ -181,7 +179,8 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 .trade-prices { display: flex; gap: 16px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
 .trade-price-label { color: var(--muted); font-size: 10px; display: block; }
 .trade-profit { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; text-align: right; }
-.trade-date { font-size: 11px; color: var(--muted); margin-top: 6px; text-align: right; }
+.trade-margin { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 500; text-align: right; opacity: 0.7; }
+.trade-date { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
 .trade-actions { display: flex; gap: 2px; margin-top: 8px; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 8px; }
 .action-btn {
   background: var(--surface2); border: 1px solid var(--border); cursor: pointer;
@@ -601,20 +600,12 @@ function render() {
   document.getElementById("stats").innerHTML = `
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">💰 Общий профит</div>
-        <div class="stat-value" style="color:${profitColor}">${profitSign}${fmt(totalProfit)}</div>
-      </div>
-      <div class="stat-card">
         <div class="stat-label">📊 Сделок</div>
         <div class="stat-value">${sold.length}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">📈 Ср. профит</div>
         <div class="stat-value" style="color:${avgProfit>=0?'var(--accent)':'var(--red)'}; font-size:16px">${fmt(Math.round(avgProfit))}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">⚡ Маржа</div>
-        <div class="stat-value" style="color:var(--yellow)">${avgMargin.toFixed(1)}%</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">📦 В наличии · ${inStock.length} шт</div>
@@ -722,10 +713,12 @@ function render() {
   let listHTML = "";
   filtered.forEach(t => {
     const profit = t.sellPrice != null ? t.sellPrice - t.buyPrice : null;
+    const margin = (profit != null && t.sellPrice > 0) ? (profit / t.buyPrice * 100) : null;
     const statusClass = t.status==="sold" ? "status-sold" : "status-stock";
     const statusText = t.status==="sold" ? "Продано" : "В наличии";
     const profitColor = profit==null ? "var(--muted)" : profit>=0 ? "var(--accent)" : "var(--red)";
     const profitText = profit!=null ? (profit>=0?"+":"")+fmt(profit) : "—";
+    const marginText = margin!=null ? (margin>=0?"+":"") + margin.toFixed(1) + "%" : "";
 
     listHTML += `<div class="trade-card">
       <div class="trade-top">
@@ -739,6 +732,7 @@ function render() {
         </div>
         <div>
           <div class="trade-profit" style="color:${profitColor}">${profitText}</div>
+          ${marginText ? `<div class="trade-margin" style="color:${profitColor}">${marginText}</div>` : ''}
           <div class="trade-date">${fmtDate(t.soldDate||t.date)}</div>
         </div>
       </div>
