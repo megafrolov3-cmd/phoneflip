@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>PhoneFlip</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -33,11 +33,26 @@ body {
   color: var(--text);
   font-family: 'Outfit', sans-serif;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   padding-bottom: env(safe-area-inset-bottom, 20px);
   overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }
-input, select, button { font-family: 'Outfit', sans-serif; -webkit-appearance: none; }
-input[type="text"], input[type="number"], input[type="date"], select {
+html { height: -webkit-fill-available; }
+input, button { font-family: 'Outfit', sans-serif; -webkit-appearance: none; }
+select { font-family: 'Outfit', sans-serif; }
+input[type="text"], input[type="number"], input[type="date"] {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 16px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+select {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -55,7 +70,7 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-.container { max-width: 600px; margin: 0 auto; padding: 16px 14px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); }
+.container { max-width: 600px; margin: 0 auto; padding: 16px 14px; padding-top: max(16px, env(safe-area-inset-top, 16px)); }
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
 .header h1 span { font-size: 24px; }
@@ -93,7 +108,8 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   width: 100%; max-width: 600px; border: 1px solid var(--border); border-bottom: none;
   box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
   animation: slideUp 0.3s ease;
-  max-height: 90vh; overflow-y: auto;
+  max-height: 85vh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 .modal-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 0 auto 18px; }
@@ -364,7 +380,7 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 <div class="overlay" id="overlay" onclick="if(event.target===this)closeForm()">
   <div class="modal">
     <div class="modal-handle"></div>
-    <h2 id="formTitle">Новая сделка</h2>
+    <h2 id="formTitle">Новая продажа</h2>
     <div class="form-grid">
       <div>
         <label class="form-label">Модель</label>
@@ -693,7 +709,7 @@ function changeQty(delta) {
 function openForm(id) {
   haptic("medium");
   editId = id || null;
-  document.getElementById("formTitle").textContent = editId ? "Редактировать" : "Новая сделка";
+  document.getElementById("formTitle").textContent = editId ? "Редактировать" : "Новая продажа";
   document.getElementById("btnSubmit").textContent = editId ? "Сохранить" : "Добавить";
   // Hide qty when editing, show when adding
   document.getElementById("qtyField").style.display = editId ? "none" : "block";
