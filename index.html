@@ -67,9 +67,9 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 /* Tabs */
 .tabs { display: flex; gap: 0; margin-bottom: 20px; background: var(--surface); border-radius: 10px; padding: 3px; border: 1px solid var(--border); }
 .tab {
-  flex: 1; padding: 9px 0; text-align: center; font-size: 13px; font-weight: 500;
+  flex: 1; padding: 9px 0; text-align: center; font-size: 12px; font-weight: 500;
   border: none; background: transparent; color: var(--muted); cursor: pointer;
-  border-radius: 8px; transition: all 0.2s;
+  border-radius: 8px; transition: all 0.2s; white-space: nowrap;
 }
 .tab.active { background: var(--surface2); color: var(--text); font-weight: 600; }
 
@@ -240,6 +240,28 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
 .pvz-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .pvz-cashback { font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 700; color: var(--accent); text-align: right; }
 .pvz-pct { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; text-align: right; margin-top: 2px; }
+
+/* Release */
+.rel-name-row {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+  padding: 12px 16px; margin-bottom: 12px;
+}
+.rel-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.rel-stat {
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+  padding: 14px 16px;
+}
+.rel-stat-label { font-size: 11px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 4px; }
+.rel-stat-value { font-size: 20px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.rel-card {
+  background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border);
+  padding: 12px 16px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;
+}
+.rel-card:active { background: var(--surface2); }
+.rel-card-name { font-weight: 600; font-size: 13px; }
+.rel-card-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.rel-card-earn { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 700; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -258,6 +280,7 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
     <button class="tab active" onclick="switchTab('dashboard',this)">📊 Обзор</button>
     <button class="tab" onclick="switchTab('trades',this)">📋 Продажи</button>
     <button class="tab" onclick="switchTab('pvz',this)">💸 ПВЗ</button>
+    <button class="tab" onclick="switchTab('release',this)">📦 Релиз</button>
   </div>
 
   <!-- Dashboard -->
@@ -286,6 +309,18 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
       <button class="btn-add" style="margin-left:auto;padding:8px 14px;font-size:13px" onclick="openPvzForm()">+ Заказ</button>
     </div>
     <div id="pvzList"></div>
+  </div>
+
+  <!-- Release -->
+  <div id="releaseTab" style="display:none">
+    <div id="relStats"></div>
+    <div class="filter-row">
+      <select id="relMonthFilter" onchange="renderRelease()"></select>
+      <select id="relOwnerFilter" onchange="renderRelease()" style="width:auto;min-width:100px;font-size:14px"></select>
+      <span class="filter-count" id="relCountLabel"></span>
+      <button class="btn-add" style="margin-left:auto;padding:8px 14px;font-size:13px" onclick="openRelForm()">+ Продажа</button>
+    </div>
+    <div id="relList"></div>
   </div>
 
   <div class="footer">PhoneFlip v1.0</div>
@@ -382,6 +417,63 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   </div>
 </div>
 
+<!-- Release Modal -->
+<div class="overlay" id="relOverlay" onclick="if(event.target===this)closeRelForm()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 id="relFormTitle">Новая продажа</h2>
+    <div class="form-grid">
+      <div>
+        <label class="form-label">Владелец</label>
+        <select id="relOwner">
+          <option value="">Выбрать...</option>
+          <option value="Егор">Егор</option>
+          <option value="Дима">Дима</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Модель</label>
+        <select id="relModel" onchange="onRelModelChange()">
+          <option value="">Выбрать модель...</option>
+        </select>
+      </div>
+      <div class="form-row" id="relStorageColorRow" style="display:none">
+        <div>
+          <label class="form-label">Память</label>
+          <select id="relStorage"></select>
+        </div>
+        <div>
+          <label class="form-label">Цвет</label>
+          <select id="relColor"></select>
+        </div>
+      </div>
+      <div id="relManualNameRow">
+        <label class="form-label">Или вручную</label>
+        <input type="text" id="relName" placeholder="Другая модель...">
+      </div>
+      <div class="form-row">
+        <div>
+          <label class="form-label">Цена продажи ₽</label>
+          <input type="number" id="relSellPrice" placeholder="60000" inputmode="numeric">
+        </div>
+        <div>
+          <label class="form-label">Ставка ₽</label>
+          <input type="number" id="relRate" value="1000" inputmode="numeric">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Дата</label>
+        <input type="date" id="relDate">
+      </div>
+      <div class="form-actions">
+        <button class="btn-submit" onclick="submitRelForm()" id="relBtnSubmit">Добавить</button>
+        <button class="btn-cancel" onclick="closeRelForm()">Отмена</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <script>
 // --- Telegram WebApp ---
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -407,6 +499,7 @@ function haptic(type) {
 // --- Constants ---
 const STORAGE_KEY = "phone-trades-v1";
 const PVZ_STORAGE_KEY = "phone-pvz-v1";
+const REL_STORAGE_KEY = "phone-rel-v1";
 const MONTHS_RU = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 
 const IPHONE_MODELS = [
@@ -418,8 +511,10 @@ const IPHONE_MODELS = [
 
 let trades = [];
 let pvzOrders = [];
+let relSales = [];
 let editId = null;
 let pvzEditId = null;
+let relEditId = null;
 let currentTab = "dashboard";
 let calYear = new Date().getFullYear();
 let calMonth = new Date().getMonth();
@@ -429,7 +524,7 @@ async function loadData() {
   return new Promise((resolve) => {
     if (tg && tg.CloudStorage) {
       let loaded = 0;
-      const done = () => { loaded++; if (loaded >= 2) resolve(); };
+      const done = () => { loaded++; if (loaded >= 3) resolve(); };
       tg.CloudStorage.getItem(STORAGE_KEY, (err, val) => {
         if (!err && val) { try { trades = JSON.parse(val); } catch(e) {} }
         done();
@@ -438,12 +533,23 @@ async function loadData() {
         if (!err && val) { try { pvzOrders = JSON.parse(val); } catch(e) {} }
         done();
       });
+      tg.CloudStorage.getItem(REL_STORAGE_KEY, (err, val) => {
+        if (!err && val) {
+          try {
+            const d = JSON.parse(val);
+            relSales = Array.isArray(d) ? d : (d.sales || []);
+          } catch(e) {}
+        }
+        done();
+      });
     } else {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) trades = JSON.parse(raw);
         const pvzRaw = localStorage.getItem(PVZ_STORAGE_KEY);
         if (pvzRaw) pvzOrders = JSON.parse(pvzRaw);
+        const relRaw = localStorage.getItem(REL_STORAGE_KEY);
+        if (relRaw) { const d = JSON.parse(relRaw); relSales = Array.isArray(d) ? d : (d.sales || []); }
       } catch(e) {}
       resolve();
     }
@@ -453,11 +559,17 @@ async function loadData() {
 function saveData() {
   const data = JSON.stringify(trades);
   const pvzData = JSON.stringify(pvzOrders);
+  const relData = JSON.stringify(relSales);
   if (tg && tg.CloudStorage) {
     tg.CloudStorage.setItem(STORAGE_KEY, data);
     tg.CloudStorage.setItem(PVZ_STORAGE_KEY, pvzData);
+    tg.CloudStorage.setItem(REL_STORAGE_KEY, relData);
   }
-  try { localStorage.setItem(STORAGE_KEY, data); localStorage.setItem(PVZ_STORAGE_KEY, pvzData); } catch(e) {}
+  try {
+    localStorage.setItem(STORAGE_KEY, data);
+    localStorage.setItem(PVZ_STORAGE_KEY, pvzData);
+    localStorage.setItem(REL_STORAGE_KEY, relData);
+  } catch(e) {}
 }
 
 // --- Helpers ---
@@ -476,7 +588,9 @@ function switchTab(tab, el) {
   document.getElementById("dashboardTab").style.display = tab === "dashboard" ? "block" : "none";
   document.getElementById("tradesTab").style.display = tab === "trades" ? "block" : "none";
   document.getElementById("pvzTab").style.display = tab === "pvz" ? "block" : "none";
+  document.getElementById("releaseTab").style.display = tab === "release" ? "block" : "none";
   if (tab === "pvz") renderPvz();
+  if (tab === "release") renderRelease();
 }
 
 // --- Calendar Nav ---
@@ -952,12 +1066,190 @@ function renderPvz() {
   document.getElementById("pvzList").innerHTML = html;
 }
 
+// --- Release Functions ---
+function initRelModelSelect() {
+  const sel = document.getElementById("relModel");
+  sel.innerHTML = '<option value="">Выбрать модель...</option>';
+  IPHONE_MODELS.forEach(m => {
+    const o = document.createElement("option");
+    o.value = m.label; o.textContent = m.label;
+    sel.appendChild(o);
+  });
+}
+
+function onRelModelChange() {
+  const val = document.getElementById("relModel").value;
+  const model = IPHONE_MODELS.find(m => m.label === val);
+  const row = document.getElementById("relStorageColorRow");
+  const manual = document.getElementById("relManualNameRow");
+  if (model) {
+    row.style.display = "grid";
+    manual.style.display = "none";
+    const sSel = document.getElementById("relStorage");
+    sSel.innerHTML = '<option value="">—</option>';
+    model.storages.forEach(s => { const o=document.createElement("option"); o.value=s; o.textContent=s; sSel.appendChild(o); });
+    const cSel = document.getElementById("relColor");
+    cSel.innerHTML = '<option value="">—</option>';
+    model.colors.forEach(c => { const o=document.createElement("option"); o.value=c; o.textContent=c; cSel.appendChild(o); });
+  } else {
+    row.style.display = "none";
+    manual.style.display = "block";
+  }
+}
+
+function openRelForm(id) {
+  haptic("medium");
+  relEditId = id || null;
+  document.getElementById("relFormTitle").textContent = relEditId ? "Редактировать" : "Новая продажа";
+  document.getElementById("relBtnSubmit").textContent = relEditId ? "Сохранить" : "Добавить";
+
+  if (relEditId) {
+    const s = relSales.find(x => x.id === relEditId);
+    if (!s) return;
+    document.getElementById("relOwner").value = s.owner || "";
+    const found = IPHONE_MODELS.find(m => s.name.startsWith(m.label));
+    if (found) {
+      document.getElementById("relModel").value = found.label;
+      onRelModelChange();
+      const rest = s.name.slice(found.label.length).trim();
+      const fs = found.storages.find(st => rest.includes(st));
+      const fc = found.colors.find(c => rest.includes(c));
+      if (fs) document.getElementById("relStorage").value = fs;
+      if (fc) document.getElementById("relColor").value = fc;
+      document.getElementById("relName").value = "";
+    } else {
+      document.getElementById("relModel").value = "";
+      onRelModelChange();
+      document.getElementById("relName").value = s.name;
+    }
+    document.getElementById("relSellPrice").value = s.sellPrice;
+    document.getElementById("relRate").value = s.rate;
+    document.getElementById("relDate").value = s.date;
+  } else {
+    document.getElementById("relOwner").value = "";
+    document.getElementById("relModel").value = "";
+    onRelModelChange();
+    document.getElementById("relName").value = "";
+    document.getElementById("relSellPrice").value = "";
+    document.getElementById("relRate").value = "1000";
+    document.getElementById("relDate").value = new Date().toISOString().slice(0,10);
+  }
+  document.getElementById("relOverlay").classList.add("active");
+}
+
+function closeRelForm() {
+  document.getElementById("relOverlay").classList.remove("active");
+  relEditId = null;
+}
+
+function submitRelForm() {
+  const owner = document.getElementById("relOwner").value.trim();
+  const modelVal = document.getElementById("relModel").value;
+  const storage = document.getElementById("relStorage").value;
+  const color = document.getElementById("relColor").value;
+  const manualName = document.getElementById("relName").value.trim();
+  const name = modelVal ? [modelVal, storage, color].filter(Boolean).join(" ") : manualName;
+  const sellPrice = parseFloat(document.getElementById("relSellPrice").value);
+  const rate = parseFloat(document.getElementById("relRate").value) || 1000;
+  const date = document.getElementById("relDate").value;
+
+  if (!name || isNaN(sellPrice) || !date) return;
+  haptic("heavy");
+
+  if (relEditId) {
+    relSales = relSales.map(s => s.id === relEditId ? { ...s, owner, name, sellPrice, rate, date } : s);
+  } else {
+    relSales.unshift({ id: genId() + "r", owner, name, sellPrice, rate, date });
+  }
+  saveData();
+  closeRelForm();
+  renderRelease();
+}
+
+function deleteRelSale(id) {
+  haptic("heavy");
+  if (!confirm("Удалить?")) return;
+  relSales = relSales.filter(s => s.id !== id);
+  saveData();
+  renderRelease();
+}
+
+function renderRelease() {
+
+  const mf = document.getElementById("relMonthFilter");
+  const of = document.getElementById("relOwnerFilter");
+
+  // Month filter
+  const monthSet = new Set();
+  relSales.forEach(s => monthSet.add(monthKey(s.date)));
+  const months = [...monthSet].sort().reverse();
+  const curMonth = mf.value;
+  mf.innerHTML = '<option value="all">Все месяцы</option>';
+  months.forEach(m => { const o=document.createElement("option"); o.value=m; o.textContent=monthLabel(m); mf.appendChild(o); });
+  mf.value = months.includes(curMonth) ? curMonth : "all";
+
+  // Owner filter
+  const owners = [...new Set(relSales.map(s => s.owner).filter(Boolean))].sort();
+  const curOwner = of.value;
+  of.innerHTML = '<option value="all">Все</option>';
+  owners.forEach(o => { const opt=document.createElement("option"); opt.value=o; opt.textContent=o; of.appendChild(opt); });
+  of.value = owners.includes(curOwner) ? curOwner : "all";
+
+  let filtered = relSales;
+  if (mf.value !== "all") filtered = filtered.filter(s => monthKey(s.date) === mf.value);
+  if (of.value !== "all") filtered = filtered.filter(s => s.owner === of.value);
+  filtered = [...filtered].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  document.getElementById("relCountLabel").textContent = filtered.length + " шт";
+
+  const totalEarned = filtered.reduce((s,r) => s + r.rate, 0);
+  const totalSold = filtered.reduce((s,r) => s + r.sellPrice, 0);
+
+  document.getElementById("relStats").innerHTML = `
+    <div class="rel-stats-row">
+      <div class="rel-stat">
+        <div class="rel-stat-label">💰 Заработок</div>
+        <div class="rel-stat-value" style="color:var(--accent)">+${fmt(totalEarned)}</div>
+      </div>
+      <div class="rel-stat">
+        <div class="rel-stat-label">📱 Продано</div>
+        <div class="rel-stat-value">${filtered.length}</div>
+      </div>
+    </div>`;
+
+  if (filtered.length === 0) {
+    document.getElementById("relList").innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Нажми «+ Продажа»</div></div>';
+    return;
+  }
+
+  let html = "";
+  filtered.forEach(s => {
+    const ownerBadge = s.owner ? `<span style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:10px;color:var(--muted);font-weight:600">${s.owner}</span>` : '';
+    html += `<div class="rel-card">
+      <div>
+        <div class="rel-card-name">${s.name} ${ownerBadge}</div>
+        <div class="rel-card-meta">${fmtDate(s.date)} · Продажа: ${fmt(s.sellPrice)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="rel-card-earn">+${fmt(s.rate)}</div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button class="action-btn" style="padding:4px 8px;font-size:11px" onclick="openRelForm('${s.id}')">✏️</button>
+          <button class="action-btn" style="padding:4px 8px;font-size:11px" onclick="deleteRelSale('${s.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  document.getElementById("relList").innerHTML = html;
+}
+
 // --- Init ---
 (async () => {
   await loadData();
   initModelSelect();
+  initRelModelSelect();
   render();
   renderPvz();
+  renderRelease();
 })();
 </script>
 </body>
