@@ -190,6 +190,15 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
   font-family: 'JetBrains Mono', monospace; margin-left: auto;
 }
 .export-btn:active { background: var(--border); }
+
+.qty-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--surface2); border: 1px solid var(--border);
+  color: var(--text); font-size: 18px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s; flex-shrink: 0;
+}
+.qty-btn:active { background: var(--border); }
 </style>
 </head>
 <body>
@@ -265,9 +274,19 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
           <input type="number" id="fSell" placeholder="58000" inputmode="numeric">
         </div>
       </div>
-      <div>
-        <label class="form-label">Дата</label>
-        <input type="date" id="fDate">
+      <div class="form-row" id="qtyDateRow">
+        <div id="qtyField">
+          <label class="form-label">Кол-во</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button type="button" class="qty-btn" onclick="changeQty(-1)">−</button>
+            <input type="number" id="fQty" value="1" min="1" max="50" inputmode="numeric" style="text-align:center">
+            <button type="button" class="qty-btn" onclick="changeQty(1)">+</button>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Дата</label>
+          <input type="date" id="fDate">
+        </div>
       </div>
       <p class="form-hint">Без цены продажи → статус «В наличии»</p>
       <div class="form-actions">
@@ -394,11 +413,21 @@ function onModelChange() {
 }
 
 // --- Form ---
+function changeQty(delta) {
+  haptic("light");
+  const inp = document.getElementById("fQty");
+  let val = parseInt(inp.value) || 1;
+  val = Math.max(1, Math.min(50, val + delta));
+  inp.value = val;
+}
+
 function openForm(id) {
   haptic("medium");
   editId = id || null;
   document.getElementById("formTitle").textContent = editId ? "Редактировать" : "Новая сделка";
   document.getElementById("btnSubmit").textContent = editId ? "Сохранить" : "Добавить";
+  // Hide qty when editing, show when adding
+  document.getElementById("qtyField").style.display = editId ? "none" : "block";
 
   if (editId) {
     const t = trades.find(x => x.id === editId);
@@ -428,6 +457,7 @@ function openForm(id) {
     document.getElementById("fBuy").value = "";
     document.getElementById("fSell").value = "";
     document.getElementById("fDate").value = new Date().toISOString().slice(0,10);
+    document.getElementById("fQty").value = 1;
   }
   document.getElementById("overlay").classList.add("active");
 }
@@ -447,22 +477,30 @@ function submitForm() {
   const sellRaw = document.getElementById("fSell").value;
   const sellPrice = sellRaw ? parseFloat(sellRaw) : null;
   const date = document.getElementById("fDate").value;
+  const qty = editId ? 1 : Math.max(1, Math.min(50, parseInt(document.getElementById("fQty").value) || 1));
 
   if (!name || isNaN(buyPrice) || !date) return;
 
   haptic("heavy");
 
-  const entry = {
-    id: editId || genId(),
-    name, buyPrice, sellPrice, date,
-    soldDate: sellPrice != null ? date : null,
-    status: sellPrice != null ? "sold" : "in_stock"
-  };
-
   if (editId) {
+    const entry = {
+      id: editId, name, buyPrice, sellPrice, date,
+      soldDate: sellPrice != null ? date : null,
+      status: sellPrice != null ? "sold" : "in_stock"
+    };
     trades = trades.map(t => t.id === editId ? entry : t);
   } else {
-    trades.unshift(entry);
+    const newEntries = [];
+    for (let i = 0; i < qty; i++) {
+      newEntries.push({
+        id: genId() + i,
+        name, buyPrice, sellPrice, date,
+        soldDate: sellPrice != null ? date : null,
+        status: sellPrice != null ? "sold" : "in_stock"
+      });
+    }
+    trades = [...newEntries, ...trades];
   }
   saveData();
   closeForm();
