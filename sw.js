@@ -1,4 +1,4 @@
-const CACHE_NAME = 'phoneflip-v2';
+const CACHE_NAME = 'phoneflip-v3';
 const ASSETS = [
   './',
   './index.html',
