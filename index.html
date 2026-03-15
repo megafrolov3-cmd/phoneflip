@@ -230,13 +230,13 @@ input[type="number"]::-webkit-inner-spin-button { display: none; }
       <h1><span>📱</span> PhoneFlip</h1>
       <p class="subtitle">трекер перепродаж</p>
     </div>
-    <button class="btn-add" onclick="openForm()">+ Сделка</button>
+    <button class="btn-add" onclick="openForm()">+ Продажа</button>
   </div>
 
   <!-- Tabs -->
   <div class="tabs">
     <button class="tab active" onclick="switchTab('dashboard',this)">📊 Обзор</button>
-    <button class="tab" onclick="switchTab('trades',this)">📋 Сделки</button>
+    <button class="tab" onclick="switchTab('trades',this)">📋 Продажи</button>
   </div>
 
   <!-- Dashboard -->
@@ -600,7 +600,7 @@ function render() {
   document.getElementById("stats").innerHTML = `
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">📊 Сделок</div>
+        <div class="stat-label">📊 Продаж</div>
         <div class="stat-value">${sold.length}</div>
       </div>
       <div class="stat-card">
@@ -706,7 +706,7 @@ function render() {
 
   // Trade cards
   if (filtered.length === 0) {
-    document.getElementById("tradesList").innerHTML = '<div class="empty-state"><div class="empty-icon">📱</div><div class="empty-text">Нажми «+ Сделка» чтобы начать</div></div>';
+    document.getElementById("tradesList").innerHTML = '<div class="empty-state"><div class="empty-icon">📱</div><div class="empty-text">Нажми «+ Продажа» чтобы начать</div></div>';
     return;
   }
 
